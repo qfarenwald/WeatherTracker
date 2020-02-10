@@ -26,3 +26,63 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
+import SwiftUI
+import Combine
+
+// 1
+class WeeklyWeatherViewModel: ObservableObject, Identifiable {
+  // 2
+  @Published var city: String = ""
+
+  // 3
+  @Published var dataSource: [DailyWeatherRowViewModel] = []
+
+  private let weatherFetcher: WeatherFetchable
+
+  // 4
+  private var disposables = Set<AnyCancellable>()
+
+  init(weatherFetcher: WeatherFetchable) {
+    self.weatherFetcher = weatherFetcher
+  }
+  
+  func fetchWeather(forCity city: String) {
+    // 1
+    weatherFetcher.weeklyWeatherForecast(forCity: city)
+      .map { response in
+        // 2
+        response.list.map(DailyWeatherRowViewModel.init)
+      }
+
+      // 3
+      .map(Array.removeDuplicates)
+
+      // 4
+      .receive(on: DispatchQueue.main)
+
+      // 5
+      .sink(
+        receiveCompletion: { [weak self] value in
+          guard let self = self else { return }
+          switch value {
+          case .failure:
+            // 6
+            self.dataSource = []
+          case .finished:
+            break
+          }
+        },
+        receiveValue: { [weak self] forecast in
+          guard let self = self else { return }
+
+          // 7
+          self.dataSource = forecast
+      })
+
+      // 8
+      .store(in: &disposables)
+  }
+  
+}
+
+
